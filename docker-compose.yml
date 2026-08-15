@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: agendamento_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agendamento
+      POSTGRES_USER: agendamento
+      POSTGRES_PASSWORD: agendamento
+    # Porta do host em 5434: a maquina ja tem PostgreSQL nativo ocupando 5432 e 5433.
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agendamento -d agendamento"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

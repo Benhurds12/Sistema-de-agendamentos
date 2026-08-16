@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -102,3 +103,15 @@ def gerar_grade(
     return ResultadoGrade(
         criadas=quantidade, mensagem=f"{quantidade} grades criadas com sucesso."
     )
+
+
+def horarios_disponiveis_qs(local_id: int) -> "QuerySet[HorarioAgendamento]":
+    """Horarios que ainda podem ser escolhidos em um novo agendamento.
+
+    O filtro `inicio__gt=now` resolve de uma vez as duas regras do enunciado:
+    datas passadas nao aparecem, e no dia corrente os horarios ja vencidos
+    tambem ficam de fora — sem precisar de nenhum `if` especial para "hoje".
+    """
+    return HorarioAgendamento.objects.filter(
+        local_id=local_id, disponivel=True, inicio__gt=timezone.now()
+    ).order_by("inicio")

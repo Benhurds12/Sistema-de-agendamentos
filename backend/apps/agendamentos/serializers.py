@@ -21,3 +21,10 @@ class GerarGradeSerializer(serializers.Serializer):
     inicio = serializers.DateTimeField()
     fim = serializers.DateTimeField()
     duracao_minutos = serializers.IntegerField(min_value=1)
+
+
+class DataDisponivelSerializer(serializers.Serializer):
+    """Uma linha do agrupamento por dia (usado no passo 2 do novo agendamento)."""
+
+    data = serializers.DateField()
+    total_horarios = serializers.IntegerField()

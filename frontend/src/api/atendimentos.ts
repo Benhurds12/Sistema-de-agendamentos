@@ -32,3 +32,52 @@ export async function criarAtendimento(payload: AtendimentoInput): Promise<Atend
   const { data } = await api.post<Atendimento>('/atendimentos/', payload)
   return data
 }
+
+export interface FiltrosAtendimento {
+  status?: string
+  local?: string
+  tipo?: string
+  cliente_nome?: string
+}
+
+function limparFiltrosVazios(filtros: FiltrosAtendimento): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(filtros).filter(([, valor]) => valor !== undefined && valor !== ''),
+  )
+}
+
+export async function listarAtendimentos(filtros: FiltrosAtendimento): Promise<Atendimento[]> {
+  const { data } = await api.get<Atendimento[]>('/atendimentos/', {
+    params: limparFiltrosVazios(filtros),
+  })
+  return data
+}
+
+export interface Indicadores {
+  total: number
+  pendentes: number
+  realizados: number
+  cancelados: number
+  nao_compareceram: number
+}
+
+export async function buscarIndicadores(filtros: FiltrosAtendimento): Promise<Indicadores> {
+  const { data } = await api.get<Indicadores>('/atendimentos/indicadores/', {
+    params: limparFiltrosVazios(filtros),
+  })
+  return data
+}
+
+export interface AlterarStatusInput {
+  status: StatusAtendimento
+  motivo?: string
+  descricao?: string
+}
+
+export async function alterarStatusAtendimento(
+  id: number,
+  payload: AlterarStatusInput,
+): Promise<Atendimento> {
+  const { data } = await api.patch<Atendimento>(`/atendimentos/${id}/status/`, payload)
+  return data
+}

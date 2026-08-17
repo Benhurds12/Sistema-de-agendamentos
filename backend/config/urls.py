@@ -19,7 +19,7 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.agendamentos.views import HorarioAgendamentoViewSet
+from apps.agendamentos.views import AtendimentoViewSet, HorarioAgendamentoViewSet
 from apps.clientes.views import ClienteViewSet
 from apps.locais.views import LocalViewSet
 from apps.tipos_atendimento.views import TipoAtendimentoViewSet
@@ -29,6 +29,7 @@ router.register("clientes", ClienteViewSet)
 router.register("locais", LocalViewSet)
 router.register("tipos-atendimento", TipoAtendimentoViewSet)
 router.register("horarios", HorarioAgendamentoViewSet)
+router.register("atendimentos", AtendimentoViewSet)
 
 urlpatterns = [
     path("admin/", admin.site.urls),

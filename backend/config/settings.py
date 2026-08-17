@@ -96,6 +96,7 @@ REST_FRAMEWORK = {
     # multipart/form-data tratar campo booleano ausente como False (checkbox
     # desmarcado), em vez de aplicar o default do model.
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
+    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
 }
 
 

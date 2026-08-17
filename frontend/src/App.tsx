@@ -1,10 +1,26 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { Layout } from './components/Layout'
+import { AgendamentosPage } from './pages/AgendamentosPage'
+import { ClientesPage } from './pages/ClientesPage'
+import { GerarGradePage } from './pages/GerarGradePage'
+import { LocaisPage } from './pages/LocaisPage'
+import { NovoAgendamentoPage } from './pages/NovoAgendamentoPage'
+import { TiposAtendimentoPage } from './pages/TiposAtendimentoPage'
+
 function App() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <h1 className="text-2xl font-semibold text-slate-800">
-        Sistema de Agendamento de Servicos
-      </h1>
-    </div>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<Navigate to="/agendamentos" replace />} />
+        <Route path="/agendamentos" element={<AgendamentosPage />} />
+        <Route path="/agendamentos/novo" element={<NovoAgendamentoPage />} />
+        <Route path="/grade" element={<GerarGradePage />} />
+        <Route path="/clientes" element={<ClientesPage />} />
+        <Route path="/locais" element={<LocaisPage />} />
+        <Route path="/tipos-atendimento" element={<TiposAtendimentoPage />} />
+        <Route path="*" element={<Navigate to="/agendamentos" replace />} />
+      </Route>
+    </Routes>
   )
 }
 

@@ -1,17 +1,11 @@
 import pytest
 from rest_framework import status
-from rest_framework.test import APIClient
 
 from apps.clientes.models import Cliente
 
 CPF_VALIDO_1 = "111.444.777-35"
 CPF_VALIDO_2 = "529.982.247-25"
 CPF_INVALIDO = "111.111.111-11"
-
-
-@pytest.fixture
-def api_client() -> APIClient:
-    return APIClient()
 
 
 @pytest.mark.django_db

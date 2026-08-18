@@ -1,13 +1,7 @@
 import pytest
 from rest_framework import status
-from rest_framework.test import APIClient
 
 from apps.tipos_atendimento.models import TipoAtendimento
-
-
-@pytest.fixture
-def api_client() -> APIClient:
-    return APIClient()
 
 
 @pytest.mark.django_db

@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 import os
+import sys
+from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
@@ -53,6 +55,7 @@ INSTALLED_APPS = [
     "django_filters",
     "corsheaders",
     # Apps do projeto
+    "apps.core",
     "apps.clientes",
     "apps.locais",
     "apps.tipos_atendimento",
@@ -97,12 +100,27 @@ REST_FRAMEWORK = {
     # desmarcado), em vez de aplicar o default do model.
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
 # Origens autorizadas a chamar a API (o frontend Vite roda em outra porta).
 CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 )
+
+if "pytest" in sys.modules:
+    # PBKDF2 (padrao) e proposital e lentamente hasheado; nos testes isso so
+    # soma segundos sem nenhum ganho de seguranca real. MD5 aqui e seguro
+    # porque e usado apenas durante a execucao da suite, nunca em producao.
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 
 # Database

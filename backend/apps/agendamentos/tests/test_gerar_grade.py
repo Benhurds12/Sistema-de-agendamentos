@@ -3,15 +3,9 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APIClient
 
 from apps.agendamentos.models import HorarioAgendamento
 from apps.locais.models import Local
-
-
-@pytest.fixture
-def api_client() -> APIClient:
-    return APIClient()
 
 
 @pytest.fixture

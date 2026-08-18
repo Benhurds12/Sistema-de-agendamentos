@@ -1,13 +1,7 @@
 import pytest
 from rest_framework import status
-from rest_framework.test import APIClient
 
 from apps.locais.models import Local
-
-
-@pytest.fixture
-def api_client() -> APIClient:
-    return APIClient()
 
 
 @pytest.mark.django_db

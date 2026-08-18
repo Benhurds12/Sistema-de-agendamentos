@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { logout } from '../api/auth'
 
 const links = [
   { to: '/agendamentos', label: 'Agendamentos' },
@@ -17,11 +18,18 @@ function linkClasses(isActive: boolean) {
 }
 
 export function Layout() {
+  const navigate = useNavigate()
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <aside className="w-64 shrink-0 border-r border-slate-200 bg-white p-4">
+      <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white p-4">
         <h2 className="mb-6 px-2 text-lg font-bold text-slate-900">Agendamento</h2>
-        <nav className="space-y-1">
+        <nav className="flex-1 space-y-1">
           {links.map((link) => (
             <NavLink
               key={link.to}
@@ -33,6 +41,12 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        <button
+          onClick={handleLogout}
+          className="block rounded-md px-3 py-2 text-left text-sm font-medium text-slate-500 hover:bg-slate-100"
+        >
+          Sair
+        </button>
       </aside>
 
       <main className="flex-1 p-8">

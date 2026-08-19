@@ -204,3 +204,33 @@ Rodando via Docker, prefixe qualquer um desses comandos com `docker compose exec
 ## Testes automatizados
 
 O backend possui 59 testes automatizados (pytest) cobrindo: CRUDs de cadastro, geração de grade (quantidade de slots, validações, sobreposição), consulta de disponibilidade, criação de agendamento (incluindo proteção contra concorrência), transições de status e filtros/indicadores da listagem.
+
+## Melhorias futuras (fora do escopo desta entrega)
+
+Pontos identificados durante o desenvolvimento que melhorariam a experiência, mas que optamos por não incluir nesta entrega — exigem mais esforço de implementação do que os ajustes já feitos, e não são requisitos do enunciado.
+
+### Visualização em grade (semanal/mensal)
+
+Hoje a disponibilidade é consultada em formato de lista (data → horários daquele dia, um de cada vez). Uma visão em **grade semanal** — linhas por horário do dia, colunas por dia da semana, células coloridas por status — daria uma leitura muito mais rápida da ocupação de um local.
+
+```
+Semana de 18/08 a 24/08 — Local: Unidade Central
+
+         Seg 18    Ter 19    Qua 20    Qui 21    Sex 22    Sáb 23    Dom 24
+08:00   [ LIVRE ] [OCUPADO] [ LIVRE ] [ LIVRE ] [OCUPADO]     —         —
+08:30   [OCUPADO] [ LIVRE ] [ LIVRE ] [CANCEL.] [ LIVRE ]     —         —
+09:00   [ LIVRE ] [ LIVRE ] [OCUPADO] [ LIVRE ] [ LIVRE ]     —         —
+09:30   [ LIVRE ] [OCUPADO] [ LIVRE ] [ LIVRE ] [ LIVRE ]     —         —
+  ...
+
+Legenda:  LIVRE = disponível   OCUPADO = agendado (pendente/realizado)
+          CANCEL. = cancelado (horário não reaproveitado)   — = fora do expediente / fim de semana
+```
+
+- **Semana**: viável com o nível de detalhe acima (hora a hora), reaproveitando os endpoints de disponibilidade já existentes (uma consulta por dia, ou um novo endpoint de intervalo).
+- **Mês**: nesse nível de detalhe fica visualmente poluído; funcionaria melhor como um calendário resumido, com um contador de horários livres/ocupados por dia (parecido com o que `datas-disponiveis` já retorna), sem tentar mostrar cada horário individual.
+- **Posicionamento sugerido**: como complemento visual dentro da própria tela de **Gerar Grade** (mostrando o que já existe para o local antes/depois de gerar), não anexado a outras telas — o grid precisa de largura própria para não ficar espremido ao lado do menu.
+
+### Paginação nas listagens
+
+As listagens (`/api/clientes/`, `/api/locais/`, `/api/atendimentos/` etc.) hoje retornam todos os registros de uma vez. O Django REST Framework já oferece paginação pronta (`PageNumberPagination`), mas adotá-la muda o formato de resposta de todos os endpoints de listagem (de array direto para um envelope com `count`/`next`/`previous`/`results`), exigindo ajustes tanto nos testes do backend quanto na camada de API do frontend. Não é necessário no volume de dados de um teste técnico, mas seria o próximo passo natural em caso de crescimento real da base.

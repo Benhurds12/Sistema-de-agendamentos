@@ -176,7 +176,12 @@ function ListaClientes({
             </td>
             <td className="px-4 py-2 text-right">
               <button
-                onClick={() => onAlternarAtivo(cliente.id, !cliente.ativo)}
+                onClick={() => {
+                  if (cliente.ativo && !confirm(`Desativar o cliente "${cliente.nome}"?`)) {
+                    return
+                  }
+                  onAlternarAtivo(cliente.id, !cliente.ativo)
+                }}
                 className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
               >
                 {cliente.ativo ? 'Desativar' : 'Reativar'}

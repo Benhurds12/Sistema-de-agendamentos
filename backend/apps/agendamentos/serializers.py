@@ -24,6 +24,7 @@ class GerarGradeSerializer(serializers.Serializer):
     inicio = serializers.DateTimeField()
     fim = serializers.DateTimeField()
     duracao_minutos = serializers.IntegerField(min_value=1)
+    apenas_dias_uteis = serializers.BooleanField(required=False, default=False)
 
 
 class DataDisponivelSerializer(serializers.Serializer):

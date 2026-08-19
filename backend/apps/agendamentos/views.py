@@ -37,6 +37,7 @@ class HorarioAgendamentoViewSet(
             inicio=entrada.validated_data["inicio"],
             fim=entrada.validated_data["fim"],
             duracao_minutos=entrada.validated_data["duracao_minutos"],
+            apenas_dias_uteis=entrada.validated_data["apenas_dias_uteis"],
         )
 
         return Response(

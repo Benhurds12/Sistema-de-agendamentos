@@ -178,7 +178,12 @@ function ListaTipos({
             </td>
             <td className="px-4 py-2 text-right">
               <button
-                onClick={() => onAlternarAtivo(tipo.id, !tipo.ativo)}
+                onClick={() => {
+                  if (tipo.ativo && !confirm(`Desativar o tipo de atendimento "${tipo.nome}"?`)) {
+                    return
+                  }
+                  onAlternarAtivo(tipo.id, !tipo.ativo)
+                }}
                 className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
               >
                 {tipo.ativo ? 'Desativar' : 'Reativar'}

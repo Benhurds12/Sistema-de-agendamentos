@@ -5,6 +5,7 @@ export interface GerarGradeInput {
   inicio: string
   fim: string
   duracao_minutos: number
+  apenas_dias_uteis?: boolean
 }
 
 export interface GerarGradeResultado {

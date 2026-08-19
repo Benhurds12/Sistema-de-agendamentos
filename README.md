@@ -7,7 +7,7 @@ Aplicação web para gerenciamento de agendamentos de serviços: cadastro de cli
 - **Backend**: Python 3.13 + Django 5 + Django REST Framework
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS
 - **Banco de dados**: PostgreSQL (via Docker)
-- **Testes**: pytest + pytest-django (56 testes automatizados no backend)
+- **Testes**: pytest + pytest-django (59 testes automatizados no backend)
 
 ## Estrutura do projeto
 
@@ -138,7 +138,7 @@ Variável de ambiente relevante (`frontend/.env`):
 
 1. Acesse `http://localhost:5173` e faça login com o usuário padrão: **`admin`** / **`admin123`** (criado no passo anterior via `criar_usuario_padrao`).
 2. Cadastre ao menos um **Cliente**, um **Local** e um **Tipo de Atendimento**.
-3. Em **Gerar Grade**, selecione o local, o intervalo de data/hora e a duração do atendimento — o sistema cria automaticamente a quantidade máxima de horários completos que cabem no intervalo.
+3. Em **Gerar Grade**, selecione o local, o intervalo de data/hora e a duração do atendimento — o sistema cria automaticamente a quantidade máxima de horários completos que cabem no intervalo. Marque "Gerar apenas em dias úteis" para pular sábados e domingos automaticamente.
 4. Em **Novo Agendamento**, escolha local → data → horário disponível, o cliente e o tipo de atendimento.
 5. Em **Agendamentos**, acompanhe a listagem com filtros, indicadores e altere o status de cada atendimento (Pendente → Realizado / Cancelado / Não compareceu).
 
@@ -151,6 +151,7 @@ O enunciado do teste deixa alguns comportamentos em aberto. As decisões tomadas
 - **Intervalo menor que a duração informada é tratado como erro.** Se o intervalo não comportar nenhum horário completo, a API retorna 400 em vez de "0 grades criadas com sucesso".
 - **Atendimentos não são excluídos.** Não há endpoint de exclusão para atendimentos — permanecem armazenados independentemente do status, conforme exigido.
 - **Geração de grade em intervalos de vários dias respeita uma janela diária de expediente.** Se `início` e `fim` estiverem em dias diferentes (ex.: dia 17 às 08:00 até dia 21 às 18:00), o horário de cada um define o expediente diário (aqui, 08:00–18:00), repetido em todos os dias do intervalo — nunca é gerado horário fora dessa janela, mesmo que o intervalo bruto atravesse a madrugada. Se o horário de fim não for posterior ao de início dentro do dia, a API rejeita com 400.
+- **Geração de grade tem opção de pular sábados e domingos** (`apenas_dias_uteis`, opcional). Não é um requisito do enunciado — é uma conveniência para quem não atende nesses dias, evitando ter que excluir manualmente pelo Admin depois.
 - **A duração do Tipo de Atendimento é independente da duração da grade.** O enunciado apresenta os dois campos em seções separadas (cadastro do tipo vs. geração de grade) sem deixar claro se um deveria derivar do outro. Essa dúvida foi confirmada diretamente com o autor do teste: a duração do tipo de atendimento não deve ser considerada na geração/ocupação da grade — ela existe apenas como informação do cadastro. Um agendamento sempre ocupa exatamente um horário da grade, independentemente da duração do tipo escolhido.
 
 ## Principais endpoints da API
@@ -202,4 +203,4 @@ Rodando via Docker, prefixe qualquer um desses comandos com `docker compose exec
 
 ## Testes automatizados
 
-O backend possui 56 testes automatizados (pytest) cobrindo: CRUDs de cadastro, geração de grade (quantidade de slots, validações, sobreposição), consulta de disponibilidade, criação de agendamento (incluindo proteção contra concorrência), transições de status e filtros/indicadores da listagem.
+O backend possui 59 testes automatizados (pytest) cobrindo: CRUDs de cadastro, geração de grade (quantidade de slots, validações, sobreposição), consulta de disponibilidade, criação de agendamento (incluindo proteção contra concorrência), transições de status e filtros/indicadores da listagem.

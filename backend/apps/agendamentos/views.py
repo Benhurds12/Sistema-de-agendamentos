@@ -25,6 +25,7 @@ class HorarioAgendamentoViewSet(
 
     queryset = HorarioAgendamento.objects.select_related("local").all()
     serializer_class = HorarioAgendamentoSerializer
+    filterset_fields = ["local", "disponivel"]
 
     @action(detail=False, methods=["post"], url_path="gerar-grade")
     def gerar_grade(self, request):

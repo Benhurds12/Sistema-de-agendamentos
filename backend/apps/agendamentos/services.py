@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -23,14 +23,51 @@ class ResultadoGrade:
     mensagem: str
 
 
+def _janelas_diarias(inicio: datetime, fim: datetime) -> list[tuple[datetime, datetime]]:
+    """Uma janela [inicio_do_dia, fim_do_dia) por dia do intervalo.
+
+    O horario (nao a data) de `inicio` e `fim` define o expediente diario,
+    repetido em todos os dias do intervalo. Ex.: inicio dia 17 as 08:00 e fim
+    dia 21 as 18:00 gera 5 janelas (17 a 21), cada uma das 08:00 as 18:00 —
+    nenhum horario cai na madrugada entre um dia e o proximo.
+    """
+    hora_inicio_diaria = inicio.timetz()
+    hora_fim_diaria = fim.timetz()
+
+    if hora_fim_diaria <= hora_inicio_diaria:
+        raise ValidationError(
+            {
+                "fim": [
+                    "O horario de fim deve ser posterior ao horario de inicio "
+                    "em cada dia (ex.: inicio as 08:00 e fim as 18:00)."
+                ]
+            }
+        )
+
+    janelas = []
+    dia_atual = inicio.date()
+    while dia_atual <= fim.date():
+        janela_inicio = datetime.combine(dia_atual, hora_inicio_diaria)
+        janela_fim = datetime.combine(dia_atual, hora_fim_diaria)
+        janelas.append((janela_inicio, janela_fim))
+        dia_atual += timedelta(days=1)
+
+    return janelas
+
+
 def gerar_grade(
     *, local: Local, inicio: datetime, fim: datetime, duracao_minutos: int
 ) -> ResultadoGrade:
     """Gera a quantidade maxima de horarios completos dentro do intervalo.
 
-    Nunca cria um slot parcial que ultrapasse `fim` (regra explicita do
-    enunciado). Rejeita a geracao inteira caso o intervalo se sobreponha a
-    horarios ja existentes no mesmo local.
+    O intervalo pode abranger varios dias; nesse caso, cada dia respeita a
+    mesma janela diaria definida pelo horario de `inicio`/`fim` (ex.: sempre
+    das 08:00 as 18:00) — nunca gera horario fora desse expediente, mesmo
+    que o intervalo bruto atravesse a madrugada.
+
+    Nunca cria um slot parcial que ultrapasse o fim de cada janela (regra
+    explicita do enunciado). Rejeita a geracao inteira caso qualquer janela
+    se sobreponha a horarios ja existentes no mesmo local.
     """
     if duracao_minutos is None or duracao_minutos <= 0:
         raise ValidationError({"duracao_minutos": ["A duracao deve ser maior que zero."]})
@@ -49,9 +86,20 @@ def gerar_grade(
         )
 
     duracao = timedelta(minutes=duracao_minutos)
-    quantidade = int((fim - inicio) // duracao)
+    janelas = _janelas_diarias(inicio, fim)
 
-    if quantidade == 0:
+    horarios = []
+    for janela_inicio, janela_fim in janelas:
+        cursor = janela_inicio
+        while cursor + duracao <= janela_fim:
+            horarios.append(
+                HorarioAgendamento(
+                    local=local, inicio=cursor, fim=cursor + duracao, disponivel=True
+                )
+            )
+            cursor += duracao
+
+    if not horarios:
         raise ValidationError(
             {
                 "duracao_minutos": [
@@ -60,22 +108,21 @@ def gerar_grade(
             }
         )
 
-    fim_efetivo = inicio + duracao * quantidade
+    # Sobreposicao no mesmo local: comparamos contra cada janela DIARIA (nao
+    # contra cada slot individual) — e equivalente, ja que os slots preenchem
+    # a janela sem buracos, e evita checar dezenas de sub-intervalos a toa.
+    # Isso tambem evita falso-positivo: um horario existente as 22h (fora do
+    # expediente) nao deveria bloquear uma nova grade das 08h as 18h.
+    condicoes_sobreposicao = Q()
+    for janela_inicio, janela_fim in janelas:
+        condicoes_sobreposicao |= Q(inicio__lt=janela_fim, fim__gt=janela_inicio)
 
-    # Sobreposicao no mesmo local: dois periodos colidem quando um comeca
-    # antes do outro terminar. Comparamos contra o intervalo efetivamente
-    # ocupado (fim_efetivo), nao contra o `fim` bruto informado pelo usuario.
-    conflito = (
-        HorarioAgendamento.objects.filter(
-            local=local, inicio__lt=fim_efetivo, fim__gt=inicio
-        )
-        .order_by("inicio")
-        .first()
+    conflitos_qs = HorarioAgendamento.objects.filter(local=local).filter(
+        condicoes_sobreposicao
     )
+    conflito = conflitos_qs.order_by("inicio").first()
     if conflito is not None:
-        total_conflitos = HorarioAgendamento.objects.filter(
-            local=local, inicio__lt=fim_efetivo, fim__gt=inicio
-        ).count()
+        total_conflitos = conflitos_qs.count()
         inicio_local = timezone.localtime(conflito.inicio)
         raise ValidationError(
             {
@@ -87,15 +134,7 @@ def gerar_grade(
             }
         )
 
-    horarios = [
-        HorarioAgendamento(
-            local=local,
-            inicio=inicio + duracao * i,
-            fim=inicio + duracao * (i + 1),
-            disponivel=True,
-        )
-        for i in range(quantidade)
-    ]
+    quantidade = len(horarios)
 
     with transaction.atomic():
         HorarioAgendamento.objects.bulk_create(horarios)

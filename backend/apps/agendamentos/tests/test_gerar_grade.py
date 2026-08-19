@@ -19,6 +19,12 @@ def _amanha_as(hora: int, minuto: int = 0):
     return base.replace(hour=hora, minute=minuto, second=0, microsecond=0)
 
 
+def _dias_a_partir_de_amanha_as(dias: int, hora: int, minuto: int = 0):
+    """Horario `dias` apos amanha (0 = amanha, 1 = depois de amanha, ...)."""
+    base = timezone.localtime() + timedelta(days=1 + dias)
+    return base.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+
+
 @pytest.mark.django_db
 def test_gera_quantidade_maxima_de_slots_completos(api_client, local):
     inicio = _amanha_as(8, 0)
@@ -154,6 +160,113 @@ def test_mesmo_intervalo_em_outro_local_e_permitido(api_client, local):
     assert primeira.status_code == status.HTTP_201_CREATED
     assert segunda.status_code == status.HTTP_201_CREATED
     assert HorarioAgendamento.objects.count() == 8
+
+
+@pytest.mark.django_db
+def test_grade_multidias_respeita_janela_diaria_e_nao_cruza_a_madrugada(api_client, local):
+    """Ex. do usuario: dia 1 as 08:00 ate dia 5 as 18:00 -> so gera horarios
+    entre 08:00 e 18:00 em CADA um dos 5 dias, nunca durante a madrugada."""
+    inicio = _dias_a_partir_de_amanha_as(0, 8, 0)
+    fim = _dias_a_partir_de_amanha_as(4, 18, 0)  # 5 dias (0,1,2,3,4)
+
+    resposta = api_client.post(
+        "/api/horarios/gerar-grade/",
+        {
+            "local": local.id,
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "duracao_minutos": 60,
+        },
+    )
+
+    assert resposta.status_code == status.HTTP_201_CREATED
+    # 10h de expediente (08h-18h) / 60min = 10 horarios por dia * 5 dias
+    assert resposta.data["criadas"] == 50
+
+    horarios = HorarioAgendamento.objects.filter(local=local).order_by("inicio")
+    assert horarios.count() == 50
+    for horario in horarios:
+        hora_local = timezone.localtime(horario.inicio)
+        assert 8 <= hora_local.hour < 18, (
+            f"horario {hora_local} caiu fora do expediente (08h-18h)"
+        )
+        fim_local = timezone.localtime(horario.fim)
+        assert fim_local.hour <= 18
+
+
+@pytest.mark.django_db
+def test_grade_multidias_janela_diaria_invalida_retorna_400(api_client, local):
+    """Fim as 08:00 e inicio as 18:00 (no dia) nao formam expediente valido."""
+    inicio = _dias_a_partir_de_amanha_as(0, 18, 0)
+    fim = _dias_a_partir_de_amanha_as(1, 8, 0)
+
+    resposta = api_client.post(
+        "/api/horarios/gerar-grade/",
+        {
+            "local": local.id,
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "duracao_minutos": 30,
+        },
+    )
+
+    assert resposta.status_code == status.HTTP_400_BAD_REQUEST
+    assert "fim" in resposta.data
+
+
+@pytest.mark.django_db
+def test_grade_multidias_ignora_horario_existente_fora_do_expediente(api_client, local):
+    """Um horario as 22h (fora de 08h-18h) num dos dias do intervalo NAO
+    deveria bloquear a geracao da grade diurna."""
+    horario_noturno = _dias_a_partir_de_amanha_as(1, 22, 0)
+    HorarioAgendamento.objects.create(
+        local=local, inicio=horario_noturno, fim=horario_noturno + timedelta(minutes=30)
+    )
+
+    inicio = _dias_a_partir_de_amanha_as(0, 8, 0)
+    fim = _dias_a_partir_de_amanha_as(2, 18, 0)  # 3 dias
+
+    resposta = api_client.post(
+        "/api/horarios/gerar-grade/",
+        {
+            "local": local.id,
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "duracao_minutos": 60,
+        },
+    )
+
+    assert resposta.status_code == status.HTTP_201_CREATED
+    assert resposta.data["criadas"] == 30  # 10 horarios/dia * 3 dias
+
+
+@pytest.mark.django_db
+def test_grade_multidias_detecta_conflito_dentro_do_expediente(api_client, local):
+    """Um horario as 09h num dos dias (dentro de 08h-18h) deve bloquear a
+    geracao inteira, mesmo o conflito estando so em 1 dos varios dias."""
+    horario_conflitante = _dias_a_partir_de_amanha_as(1, 9, 0)
+    HorarioAgendamento.objects.create(
+        local=local,
+        inicio=horario_conflitante,
+        fim=horario_conflitante + timedelta(minutes=30),
+    )
+
+    inicio = _dias_a_partir_de_amanha_as(0, 8, 0)
+    fim = _dias_a_partir_de_amanha_as(2, 18, 0)
+
+    resposta = api_client.post(
+        "/api/horarios/gerar-grade/",
+        {
+            "local": local.id,
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "duracao_minutos": 60,
+        },
+    )
+
+    assert resposta.status_code == status.HTTP_400_BAD_REQUEST
+    # So o horario de conflito original continua existindo; nada foi criado.
+    assert HorarioAgendamento.objects.filter(local=local).count() == 1
 
 
 @pytest.mark.django_db

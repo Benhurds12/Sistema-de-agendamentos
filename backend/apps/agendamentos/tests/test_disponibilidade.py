@@ -92,3 +92,19 @@ def test_horarios_disponiveis_sem_parametros_retorna_400(api_client, local):
     resposta = api_client.get(f"/api/horarios/horarios-disponiveis/?local={local.id}")
 
     assert resposta.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_listagem_generica_de_horarios_filtra_por_local(api_client, local):
+    """Regressao: o ?local= da listagem generica (GET /api/horarios/) precisa
+    filtrar de verdade, e nao devolver horarios de outros locais."""
+    outro_local = Local.objects.create(nome="Unidade Sul", endereco="Rua B, 2")
+    agora = timezone.now()
+    _criar_horario(local, agora + timedelta(days=1))
+    _criar_horario(outro_local, agora + timedelta(days=1))
+
+    resposta = api_client.get(f"/api/horarios/?local={local.id}")
+
+    assert resposta.status_code == status.HTTP_200_OK
+    assert len(resposta.data) == 1
+    assert resposta.data[0]["local"] == local.id

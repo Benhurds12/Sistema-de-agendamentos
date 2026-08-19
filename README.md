@@ -7,14 +7,15 @@ Aplicação web para gerenciamento de agendamentos de serviços: cadastro de cli
 - **Backend**: Python 3.13 + Django 5 + Django REST Framework
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS
 - **Banco de dados**: PostgreSQL (via Docker)
-- **Testes**: pytest + pytest-django (51 testes automatizados no backend)
+- **Testes**: pytest + pytest-django (56 testes automatizados no backend)
 
 ## Estrutura do projeto
 
 ```
 .
-├── docker-compose.yml     # PostgreSQL
+├── docker-compose.yml     # Postgres + backend + frontend (stack completa)
 ├── backend/                # API Django REST Framework
+│   ├── Dockerfile
 │   ├── config/               # settings, urls
 │   └── apps/
 │       ├── core/                # comando de setup (criar_usuario_padrao)
@@ -23,33 +24,50 @@ Aplicação web para gerenciamento de agendamentos de serviços: cadastro de cli
 │       ├── tipos_atendimento/  # CRUD de tipos de atendimento
 │       └── agendamentos/        # grade de horários, agendamentos, status, indicadores
 └── frontend/               # SPA React
+    ├── Dockerfile
     └── src/
         ├── api/               # chamadas HTTP + tipos
         ├── components/        # componentes reutilizáveis
         └── pages/             # telas da aplicação
 ```
 
-## Pré-requisitos
-
-- Python 3.11+
-- Node.js 18+
-- Docker (para o PostgreSQL) — ou uma instância PostgreSQL local própria
-
 ## Como rodar o projeto
 
-### 1. Banco de dados (PostgreSQL via Docker)
+### Opção A — Tudo via Docker (recomendado, um único comando)
+
+**Pré-requisito**: Docker.
 
 Na raiz do projeto:
+
+```bash
+docker compose up --build
+```
+
+Isso sobe **os três serviços** (PostgreSQL, backend, frontend), já aplica as migrations e cria o usuário padrão de avaliação automaticamente. Não precisa instalar Python, Node, nem configurar nenhum `.env` — os containers já vêm com as variáveis necessárias.
+
+- Frontend: `http://localhost:5173`
+- API: `http://localhost:8000/api/`
+- Login: usuário `admin`, senha `admin123`
+
+Para parar: `Ctrl+C` ou, em outro terminal, `docker compose down` (adicione `-v` se quiser apagar também os dados do banco).
+
+### Opção B — Backend e frontend manualmente
+
+Útil para rodar os testes automatizados ou mexer no código com hot-reload fora de containers.
+
+**Pré-requisitos**: Python 3.11+, Node.js 18+, Docker (só para o banco).
+
+**1. Banco de dados**
 
 ```bash
 docker compose up -d db
 ```
 
-Isso sobe um PostgreSQL na porta **5434** do host (mapeada para não conflitar com instâncias locais de PostgreSQL que já usem as portas 5432/5433), com o banco `agendamento` e usuário/senha `agendamento`/`agendamento`.
+Sobe um PostgreSQL na porta **5434** do host (mapeada para não conflitar com instâncias locais de PostgreSQL que já usem as portas 5432/5433), com o banco `agendamento` e usuário/senha `agendamento`/`agendamento`.
 
-> Se preferir usar um PostgreSQL já existente na sua máquina, basta ajustar `DATABASE_URL` no `.env` do backend (passo abaixo) em vez de subir o container.
+> Se preferir usar um PostgreSQL já existente na sua máquina, ajuste `DATABASE_URL` no `.env` do backend em vez de subir o container.
 
-### 2. Backend
+**2. Backend**
 
 ```bash
 cd backend
@@ -87,14 +105,14 @@ Variáveis de ambiente relevantes (`backend/.env`):
 | `DATABASE_URL` | String de conexão do PostgreSQL |
 | `CORS_ALLOWED_ORIGINS` | Origens liberadas para chamar a API (o frontend em `localhost:5173`) |
 
-### 3. Rodando os testes do backend
+**3. Rodando os testes do backend**
 
 ```bash
 cd backend
 python -m pytest apps/
 ```
 
-### 4. Frontend
+**4. Frontend**
 
 Em outro terminal:
 
@@ -152,6 +170,10 @@ PATCH  /api/atendimentos/{id}/status/
 GET    /api/atendimentos/indicadores/?status=&local=&tipo=&cliente_nome=
 ```
 
+## Excluindo horários gerados por engano (feriado, fim de semana etc.)
+
+A API não expõe exclusão de horários da grade (só geração e consulta), mas isso é possível pelo **Django Admin** (`http://localhost:8000/admin/`, login com o superusuário). Em "Horarios de agendamento": use o filtro por data (`date_hierarchy`) para navegar até o dia desejado, selecione os horários e exclua em lote. Horários que já possuem um atendimento vinculado **não podem ser excluídos** (o Admin recusa automaticamente, protegendo o histórico).
+
 ## Autenticação
 
 A API é protegida por autenticação JWT (`djangorestframework-simplejwt`), implementada como funcionalidade adicional (opcional segundo o enunciado).
@@ -163,8 +185,21 @@ POST   /api/auth/token/refresh/   # renova o access token: {"refresh": "..."} ->
 
 O frontend anexa o `access token` automaticamente em toda requisição e, se ele expirar (401), tenta renová-lo uma vez com o `refresh token` antes de redirecionar para a tela de login.
 
-**Login para avaliação**: usuário `admin`, senha `admin123` (criado pelo comando `python manage.py criar_usuario_padrao`, ver seção de instalação). Essa credencial é conhecida de propósito — o comando só executa com `DEBUG=True` e nunca deveria ser usado em um ambiente real de produção. Para criar um usuário próprio em vez do padrão, use `python manage.py createsuperuser`.
+**Login para avaliação**: usuário `admin`, senha `admin123` (criado pelo comando `python manage.py criar_usuario_padrao`, ver seção de instalação). Essa credencial é conhecida de propósito — o comando só executa com `DEBUG=True` e nunca deveria ser usado em um ambiente real de produção.
+
+### Criando outros usuários
+
+Não existe cadastro público (autocadastro pela interface web) — usuários só podem ser criados por quem já tem acesso ao terminal ou ao Admin:
+
+- **Superusuário** (acessa a API e o Django Admin): `python manage.py createsuperuser` (pede usuário/senha interativamente).
+- **Usuário comum** (só acessa a API/frontend, sem entrar no Admin):
+  ```bash
+  python manage.py shell -c "from django.contrib.auth import get_user_model; get_user_model().objects.create_user(username='fulano', password='senha123')"
+  ```
+- **Pelo Django Admin** (se já estiver logado como superusuário): `Autenticação e Autorização` → `Users` → `ADD USER +`.
+
+Rodando via Docker, prefixe qualquer um desses comandos com `docker compose exec backend` (ex.: `docker compose exec backend python manage.py createsuperuser`), e o container precisa estar em execução (`docker compose up -d`).
 
 ## Testes automatizados
 
-O backend possui 51 testes automatizados (pytest) cobrindo: CRUDs de cadastro, geração de grade (quantidade de slots, validações, sobreposição), consulta de disponibilidade, criação de agendamento (incluindo proteção contra concorrência), transições de status e filtros/indicadores da listagem.
+O backend possui 56 testes automatizados (pytest) cobrindo: CRUDs de cadastro, geração de grade (quantidade de slots, validações, sobreposição), consulta de disponibilidade, criação de agendamento (incluindo proteção contra concorrência), transições de status e filtros/indicadores da listagem.

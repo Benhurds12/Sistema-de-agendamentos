@@ -18,5 +18,37 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build: ./backend
+    container_name: agendamento_backend
+    restart: unless-stopped
+    environment:
+      # Dentro da rede do Docker Compose, o Postgres e acessado pelo nome do
+      # servico ("db") na porta interna 5432 — nao pela porta 5434 mapeada
+      # para o host, que so serve para acesso de fora do Docker (ex.: DBeaver).
+      DATABASE_URL: postgres://agendamento:agendamento@db:5432/agendamento
+      DEBUG: "True"
+      SECRET_KEY: django-insecure-docker-dev-key
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: agendamento_frontend
+    restart: unless-stopped
+    environment:
+      # O navegador (fora do Docker) e quem faz as chamadas a API, entao a
+      # URL precisa ser a porta mapeada no host, nao o nome do servico.
+      VITE_API_URL: http://localhost:8000/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:

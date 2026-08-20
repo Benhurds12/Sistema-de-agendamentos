@@ -23,22 +23,40 @@ export function AtendimentoModal({
   atendimento,
   onClose,
   onConfirmar,
+  onSalvarObservacoes,
   enviando,
+  enviandoObservacoes,
 }: {
   atendimento: Atendimento
   onClose: () => void
   onConfirmar: (status: StatusAtendimento, motivo: string, descricao: string) => void
+  onSalvarObservacoes: (motivo: string | undefined, descricao: string | undefined) => void
   enviando: boolean
+  enviandoObservacoes: boolean
 }) {
   const [novoStatus, setNovoStatus] = useState<StatusAtendimento | ''>('')
   const [motivo, setMotivo] = useState('')
   const [descricao, setDescricao] = useState('')
+  const [motivoObs, setMotivoObs] = useState(atendimento.motivo)
+  const [descricaoObs, setDescricaoObs] = useState(atendimento.descricao)
 
   const podeAlterar = atendimento.transicoes_permitidas.length > 0
+  const podeEditarMotivo = atendimento.status === 'CANCELADO'
+  const podeEditarDescricao = atendimento.status === 'REALIZADO'
+  const observacoesAlteradas =
+    (podeEditarMotivo && motivoObs !== atendimento.motivo) ||
+    (podeEditarDescricao && descricaoObs !== atendimento.descricao)
 
   function handleConfirmar() {
     if (!novoStatus) return
     onConfirmar(novoStatus, motivo, descricao)
+  }
+
+  function handleSalvarObservacoes() {
+    onSalvarObservacoes(
+      podeEditarMotivo ? motivoObs : undefined,
+      podeEditarDescricao ? descricaoObs : undefined,
+    )
   }
 
   return (
@@ -62,9 +80,56 @@ export function AtendimentoModal({
               <StatusBadge status={atendimento.status} label={atendimento.status_display} />
             </dd>
           </div>
-          {atendimento.descricao && <Linha rotulo="Observacoes/relatorio" valor={atendimento.descricao} />}
-          {atendimento.motivo && <Linha rotulo="Motivo do cancelamento" valor={atendimento.motivo} />}
         </dl>
+
+        {(podeEditarMotivo || podeEditarDescricao) && (
+          <div className="mb-6 space-y-3 border-t border-slate-200 pt-4">
+            <p className="text-xs font-medium text-slate-500">
+              {podeEditarMotivo
+                ? 'O motivo do cancelamento pode ser preenchido ou editado a qualquer momento, mesmo se o status ja foi alterado pela listagem sem esse detalhe.'
+                : 'O relatorio do atendimento pode ser preenchido ou editado a qualquer momento, mesmo se o status ja foi alterado pela listagem sem esse detalhe.'}
+            </p>
+
+            {podeEditarMotivo && (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">
+                  Motivo do cancelamento
+                </span>
+                <textarea
+                  value={motivoObs}
+                  onChange={(e) => setMotivoObs(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </label>
+            )}
+
+            {podeEditarDescricao && (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">
+                  Relatorio do atendimento
+                </span>
+                <textarea
+                  value={descricaoObs}
+                  onChange={(e) => setDescricaoObs(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </label>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSalvarObservacoes}
+                disabled={!observacoesAlteradas || enviandoObservacoes}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {enviandoObservacoes ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {podeAlterar ? (
           <div className="space-y-3 border-t border-slate-200 pt-4">

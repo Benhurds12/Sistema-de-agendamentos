@@ -38,6 +38,7 @@ export interface FiltrosAtendimento {
   local?: string
   tipo?: string
   cliente_nome?: string
+  ordering?: string
 }
 
 function limparFiltrosVazios(filtros: FiltrosAtendimento): Record<string, string> {
@@ -79,5 +80,18 @@ export async function alterarStatusAtendimento(
   payload: AlterarStatusInput,
 ): Promise<Atendimento> {
   const { data } = await api.patch<Atendimento>(`/atendimentos/${id}/status/`, payload)
+  return data
+}
+
+export interface AtualizarObservacoesInput {
+  motivo?: string
+  descricao?: string
+}
+
+export async function atualizarObservacoesAtendimento(
+  id: number,
+  payload: AtualizarObservacoesInput,
+): Promise<Atendimento> {
+  const { data } = await api.patch<Atendimento>(`/atendimentos/${id}/observacoes/`, payload)
   return data
 }

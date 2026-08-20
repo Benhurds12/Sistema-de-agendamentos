@@ -91,6 +91,69 @@ def test_filtros_combinados(api_client, cenario):
     assert resposta.data[0]["cliente_nome"] == "Bruno"
 
 
+@pytest.fixture
+def cenario_datas_distintas():
+    """3 atendimentos com data_hora bem distantes entre si, para testar ordenacao."""
+    local = Local.objects.create(nome="Unidade A", endereco="Rua A, 1")
+    tipo = TipoAtendimento.objects.create(nome="Consulta", duracao_minutos=30)
+
+    def _com_offset(nome, dias):
+        atendimento = _criar_atendimento(nome, local, tipo)
+        novo_inicio = timezone.now() + timedelta(days=dias)
+        atendimento.data_hora = novo_inicio
+        atendimento.horario.inicio = novo_inicio
+        atendimento.horario.fim = novo_inicio + timedelta(minutes=30)
+        atendimento.horario.save(update_fields=["inicio", "fim"])
+        atendimento.save(update_fields=["data_hora"])
+        return atendimento
+
+    return [_com_offset("Ana", 1), _com_offset("Bruno", 5), _com_offset("Carla", 10)]
+
+
+@pytest.mark.django_db
+def test_listagem_ordena_por_data_mais_recente_primeiro_por_padrao(
+    api_client, cenario_datas_distintas
+):
+    """Ordem default do model (`-data_hora`): quem acontece depois aparece primeiro."""
+    resposta = api_client.get("/api/atendimentos/")
+
+    nomes = [item["cliente_nome"] for item in resposta.data]
+    assert nomes == ["Carla", "Bruno", "Ana"]
+
+
+@pytest.mark.django_db
+def test_listagem_permite_ordenar_por_data_crescente(api_client, cenario_datas_distintas):
+    """`?ordering=data_hora`: quem acontece primeiro fica no topo."""
+    resposta = api_client.get("/api/atendimentos/?ordering=data_hora")
+
+    nomes = [item["cliente_nome"] for item in resposta.data]
+    assert nomes == ["Ana", "Bruno", "Carla"]
+
+
+@pytest.mark.django_db
+def test_listagem_permite_ordenar_por_data_decrescente_explicito(
+    api_client, cenario_datas_distintas
+):
+    resposta = api_client.get("/api/atendimentos/?ordering=-data_hora")
+
+    nomes = [item["cliente_nome"] for item in resposta.data]
+    assert nomes == ["Carla", "Bruno", "Ana"]
+
+
+@pytest.mark.django_db
+def test_listagem_ordenacao_e_combinavel_com_filtro_de_status(api_client, cenario_datas_distintas):
+    ana, bruno, carla = cenario_datas_distintas
+    bruno.status = StatusAtendimento.REALIZADO
+    bruno.save(update_fields=["status"])
+    carla.status = StatusAtendimento.REALIZADO
+    carla.save(update_fields=["status"])
+
+    resposta = api_client.get("/api/atendimentos/?status=REALIZADO&ordering=data_hora")
+
+    nomes = [item["cliente_nome"] for item in resposta.data]
+    assert nomes == ["Bruno", "Carla"]
+
+
 @pytest.mark.django_db
 def test_indicadores_sem_filtro(api_client, cenario):
     resposta = api_client.get("/api/atendimentos/indicadores/")

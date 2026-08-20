@@ -13,8 +13,11 @@ class StatusAtendimento(models.TextChoices):
     REALIZADO = "REALIZADO", "Realizado"
 
 
-#: Transicoes permitidas. Todo atendimento nasce PENDENTE e, uma vez em um
-#: status final, nao pode mais ser alterado.
+#: Transicoes permitidas. Todo atendimento nasce PENDENTE. REALIZADO e
+#: NAO_COMPARECEU sao definitivos (representam um fato ja consumado, nao
+#: faz sentido desfazer). CANCELADO e o unico status reversivel: foi uma
+#: decisao administrativa, entao pode voltar a PENDENTE — mas so enquanto
+#: o horario da grade ainda nao passou (ver `pode_alterar_para`).
 TRANSICOES_PERMITIDAS: dict[str, set[str]] = {
     StatusAtendimento.PENDENTE: {
         StatusAtendimento.REALIZADO,
@@ -22,7 +25,7 @@ TRANSICOES_PERMITIDAS: dict[str, set[str]] = {
         StatusAtendimento.NAO_COMPARECEU,
     },
     StatusAtendimento.REALIZADO: set(),
-    StatusAtendimento.CANCELADO: set(),
+    StatusAtendimento.CANCELADO: {StatusAtendimento.PENDENTE},
     StatusAtendimento.NAO_COMPARECEU: set(),
 }
 
@@ -107,4 +110,12 @@ class Atendimento(models.Model):
         return f"{self.cliente} - {self.data_hora:%d/%m/%Y %H:%M} ({self.get_status_display()})"
 
     def pode_alterar_para(self, novo_status: str) -> bool:
-        return novo_status in TRANSICOES_PERMITIDAS.get(self.status, set())
+        if novo_status not in TRANSICOES_PERMITIDAS.get(self.status, set()):
+            return False
+
+        if self.status == StatusAtendimento.CANCELADO and novo_status == StatusAtendimento.PENDENTE:
+            # Reabrir um cancelamento so faz sentido se ainda houver tempo
+            # habil para o cliente comparecer no horario original.
+            return self.horario.inicio > timezone.now()
+
+        return True

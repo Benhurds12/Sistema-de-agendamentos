@@ -26,6 +26,11 @@ export async function criarLocal(payload: LocalInput): Promise<Local> {
   return data
 }
 
+export async function atualizarLocal(id: number, payload: LocalInput): Promise<Local> {
+  const { data } = await api.put<Local>(`/locais/${id}/`, payload)
+  return data
+}
+
 export async function alternarAtivoLocal(id: number, ativo: boolean): Promise<Local> {
   const { data } = await api.patch<Local>(`/locais/${id}/`, { ativo })
   return data

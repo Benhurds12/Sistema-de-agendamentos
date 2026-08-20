@@ -1,6 +1,7 @@
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
-from rest_framework import mixins, status, viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -11,11 +12,12 @@ from .serializers import (
     AlterarStatusSerializer,
     AtendimentoCreateSerializer,
     AtendimentoSerializer,
+    AtualizarObservacoesSerializer,
     DataDisponivelSerializer,
     GerarGradeSerializer,
     HorarioAgendamentoSerializer,
 )
-from .services import alterar_status, gerar_grade, horarios_disponiveis_qs
+from .services import alterar_status, atualizar_observacoes, gerar_grade, horarios_disponiveis_qs
 
 
 class HorarioAgendamentoViewSet(
@@ -91,6 +93,11 @@ class AtendimentoViewSet(
 
     queryset = Atendimento.objects.select_related("cliente", "local", "tipo", "horario").all()
     filterset_class = AtendimentoFilter
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    # `?ordering=data_hora` (mais antigo primeiro) ou `?ordering=-data_hora`
+    # (mais recente primeiro, default — igual ao `ordering` do model).
+    ordering_fields = ["data_hora"]
+    ordering = ["-data_hora"]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -115,6 +122,27 @@ class AtendimentoViewSet(
             entrada.validated_data["status"],
             motivo=entrada.validated_data.get("motivo", ""),
             descricao=entrada.validated_data.get("descricao", ""),
+        )
+        return Response(
+            AtendimentoSerializer(atendimento, context=self.get_serializer_context()).data
+        )
+
+    @action(detail=True, methods=["patch"], url_path="observacoes")
+    def observacoes(self, request, pk=None):
+        """Edita motivo/descricao sem exigir transicao de status.
+
+        Cobre o caso do status ter sido alterado pelo select da listagem
+        (sem motivo/descricao) e o usuario querer complementar essa
+        informacao depois — mesmo com o atendimento ja em status final.
+        """
+        atendimento = self.get_object()
+        entrada = AtualizarObservacoesSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        atendimento = atualizar_observacoes(
+            atendimento,
+            motivo=entrada.validated_data.get("motivo"),
+            descricao=entrada.validated_data.get("descricao"),
         )
         return Response(
             AtendimentoSerializer(atendimento, context=self.get_serializer_context()).data

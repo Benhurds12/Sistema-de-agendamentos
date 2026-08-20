@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from django.utils import timezone
@@ -71,17 +72,24 @@ def test_horarios_disponiveis_de_uma_data_especifica(api_client, local):
 
 @pytest.mark.django_db
 def test_horarios_disponiveis_hoje_esconde_horarios_ja_passados(api_client, local):
-    """Regra explicita do PDF: no dia atual, horarios ja vencidos ficam de fora."""
-    agora = timezone.localtime()
+    """Regra explicita do PDF: no dia atual, horarios ja vencidos ficam de fora.
+
+    O "agora" e fixado ao meio-dia (hora local) para que somar/subtrair
+    algumas horas nunca cruze a virada do dia — sem isso, o teste falha
+    de forma intermitente quando executado perto da meia-noite, pois
+    `agora + timedelta(hours=2)` passaria a cair no dia seguinte.
+    """
+    agora = timezone.localtime().replace(hour=12, minute=0, second=0, microsecond=0)
     ja_passou = agora - timedelta(minutes=30)
     ainda_vai_acontecer = agora + timedelta(hours=2)
 
-    _criar_horario(local, ja_passou)
-    _criar_horario(local, ainda_vai_acontecer)
+    with patch("django.utils.timezone.now", return_value=agora):
+        _criar_horario(local, ja_passou)
+        _criar_horario(local, ainda_vai_acontecer)
 
-    resposta = api_client.get(
-        f"/api/horarios/horarios-disponiveis/?local={local.id}&data={agora.date().isoformat()}"
-    )
+        resposta = api_client.get(
+            f"/api/horarios/horarios-disponiveis/?local={local.id}&data={agora.date().isoformat()}"
+        )
 
     assert resposta.status_code == status.HTTP_200_OK
     assert len(resposta.data) == 1

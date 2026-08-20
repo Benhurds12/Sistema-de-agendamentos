@@ -242,11 +242,24 @@ def alterar_status(
     `motivo` so e gravado ao cancelar; `descricao` so ao marcar como
     realizado — em qualquer outra transicao, esses campos sao ignorados
     mesmo que enviados (nao fazem sentido fora desses dois casos).
+
+    CANCELADO -> PENDENTE (reabertura) e permitido enquanto o horario da
+    grade ainda nao passou; ve `Atendimento.pode_alterar_para`. O motivo
+    do cancelamento anterior nao e apagado ao reabrir, fica como historico.
     """
     if novo_status == atendimento.status:
         raise ValidationError({"status": ["O atendimento ja esta neste status."]})
 
     if not atendimento.pode_alterar_para(novo_status):
+        if (
+            atendimento.status == StatusAtendimento.CANCELADO
+            and novo_status == StatusAtendimento.PENDENTE
+            and atendimento.horario.inicio <= timezone.now()
+        ):
+            raise ValidationError(
+                {"status": ["Nao e possivel reabrir: o horario deste atendimento ja passou."]}
+            )
+
         atual = atendimento.get_status_display()
         novo_label = StatusAtendimento(novo_status).label
         raise ValidationError(
@@ -270,4 +283,43 @@ def alterar_status(
         campos.append("descricao")
 
     atendimento.save(update_fields=campos)
+    return atendimento
+
+
+def atualizar_observacoes(
+    atendimento: Atendimento, *, motivo: str | None = None, descricao: str | None = None
+) -> Atendimento:
+    """Atualiza motivo/descricao de um atendimento a qualquer momento.
+
+    Diferente de `alterar_status`, nao exige transicao de status: existe
+    para o caso em que o status foi alterado pelo select da listagem (sem
+    motivo/descricao) e o usuario quer complementar essa informacao depois,
+    mesmo com o atendimento ja em status final.
+
+    Mantem, porem, a mesma regra de contexto do PDF: motivo de cancelamento
+    so faz sentido para um atendimento CANCELADO; relatorio/descricao so
+    para um REALIZADO. Fora desse contexto, o campo nem deveria aparecer no
+    frontend — aqui e so a garantia de que a API nunca aceita um motivo em
+    um atendimento PENDENTE, por exemplo.
+    """
+    campos = []
+
+    if motivo is not None:
+        if atendimento.status != StatusAtendimento.CANCELADO:
+            raise ValidationError(
+                {"motivo": ["Motivo de cancelamento so pode ser definido em atendimentos cancelados."]}
+            )
+        atendimento.motivo = motivo
+        campos.append("motivo")
+
+    if descricao is not None:
+        if atendimento.status != StatusAtendimento.REALIZADO:
+            raise ValidationError(
+                {"descricao": ["Relatorio so pode ser definido em atendimentos realizados."]}
+            )
+        atendimento.descricao = descricao
+        campos.append("descricao")
+
+    if campos:
+        atendimento.save(update_fields=campos)
     return atendimento

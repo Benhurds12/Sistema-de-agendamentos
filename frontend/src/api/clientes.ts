@@ -28,6 +28,11 @@ export async function criarCliente(payload: ClienteInput): Promise<Cliente> {
   return data
 }
 
+export async function atualizarCliente(id: number, payload: ClienteInput): Promise<Cliente> {
+  const { data } = await api.put<Cliente>(`/clientes/${id}/`, payload)
+  return data
+}
+
 export async function alternarAtivoCliente(id: number, ativo: boolean): Promise<Cliente> {
   const { data } = await api.patch<Cliente>(`/clientes/${id}/`, { ativo })
   return data

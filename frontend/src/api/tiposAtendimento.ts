@@ -28,6 +28,14 @@ export async function criarTipoAtendimento(
   return data
 }
 
+export async function atualizarTipoAtendimento(
+  id: number,
+  payload: TipoAtendimentoInput,
+): Promise<TipoAtendimento> {
+  const { data } = await api.put<TipoAtendimento>(`/tipos-atendimento/${id}/`, payload)
+  return data
+}
+
 export async function alternarAtivoTipoAtendimento(
   id: number,
   ativo: boolean,

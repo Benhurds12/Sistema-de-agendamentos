@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   alterarStatusAtendimento,
+  atualizarObservacoesAtendimento,
   buscarIndicadores,
   listarAtendimentos,
   type Atendimento,
@@ -20,7 +21,18 @@ const OPCOES_STATUS: { value: StatusAtendimento; label: string }[] = [
   { value: 'NAO_COMPARECEU', label: 'Nao compareceu' },
 ]
 
-const FILTROS_VAZIOS: FiltrosAtendimento = { status: '', local: '', tipo: '', cliente_nome: '' }
+const FILTROS_VAZIOS: FiltrosAtendimento = {
+  status: '',
+  local: '',
+  tipo: '',
+  cliente_nome: '',
+  ordering: '',
+}
+
+const OPCOES_ORDENACAO: { value: string; label: string }[] = [
+  { value: '', label: 'Mais recentes primeiro' },
+  { value: 'data_hora', label: 'Mais antigos primeiro' },
+]
 
 function formatarDataHora(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -69,6 +81,22 @@ export function AgendamentosPage() {
     },
   })
 
+  const atualizarObservacoesMutation = useMutation({
+    mutationFn: ({
+      id,
+      motivo,
+      descricao,
+    }: {
+      id: number
+      motivo?: string
+      descricao?: string
+    }) => atualizarObservacoesAtendimento(id, { motivo, descricao }),
+    onSuccess: (atendimentoAtualizado) => {
+      queryClient.invalidateQueries({ queryKey: ['atendimentos'] })
+      setAtendimentoSelecionado(atendimentoAtualizado)
+    },
+  })
+
   const atendimentos = atendimentosQuery.data ?? []
   const indicadores = indicadoresQuery.data
   const locaisAtivos = (locaisQuery.data ?? []).filter((l) => l.ativo)
@@ -79,7 +107,7 @@ export function AgendamentosPage() {
       <h1 className="text-xl font-semibold text-slate-800">Agendamentos</h1>
 
       {/* Cards de indicadores */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <CardIndicador titulo="Total" valor={indicadores?.total} carregando={indicadoresQuery.isLoading} />
         <CardIndicador
           titulo="Pendentes"
@@ -98,6 +126,12 @@ export function AgendamentosPage() {
           valor={indicadores?.cancelados}
           carregando={indicadoresQuery.isLoading}
           cor="text-red-600"
+        />
+        <CardIndicador
+          titulo="Nao compareceu"
+          valor={indicadores?.nao_compareceram}
+          carregando={indicadoresQuery.isLoading}
+          cor="text-slate-600"
         />
       </div>
 
@@ -150,7 +184,19 @@ export function AgendamentosPage() {
           className="min-w-48 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
         />
 
-        {(filtros.status || filtros.local || filtros.tipo || filtros.cliente_nome) && (
+        <select
+          value={filtros.ordering}
+          onChange={(e) => setFiltros({ ...filtros, ordering: e.target.value })}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+        >
+          {OPCOES_ORDENACAO.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
+        {(filtros.status || filtros.local || filtros.tipo || filtros.cliente_nome || filtros.ordering) && (
           <button
             type="button"
             onClick={() => setFiltros(FILTROS_VAZIOS)}
@@ -231,6 +277,10 @@ export function AgendamentosPage() {
           enviando={alterarStatusMutation.isPending}
           onConfirmar={(status, motivo, descricao) =>
             alterarStatusMutation.mutate({ id: atendimentoSelecionado.id, status, motivo, descricao })
+          }
+          enviandoObservacoes={atualizarObservacoesMutation.isPending}
+          onSalvarObservacoes={(motivo, descricao) =>
+            atualizarObservacoesMutation.mutate({ id: atendimentoSelecionado.id, motivo, descricao })
           }
         />
       )}

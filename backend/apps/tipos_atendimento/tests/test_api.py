@@ -52,6 +52,33 @@ def test_listar_tipos_atendimento(api_client):
 
 
 @pytest.mark.django_db
+def test_editar_tipo_atendimento_via_put(api_client):
+    tipo = TipoAtendimento.objects.create(nome="Consulta", duracao_minutos=30)
+
+    payload = {"nome": "Consulta longa", "descricao": "Nova descricao", "duracao_minutos": 45}
+    resposta = api_client.put(f"/api/tipos-atendimento/{tipo.id}/", payload)
+
+    assert resposta.status_code == status.HTTP_200_OK
+    tipo.refresh_from_db()
+    assert tipo.nome == "Consulta longa"
+    assert tipo.duracao_minutos == 45
+    assert tipo.descricao == "Nova descricao"
+
+
+@pytest.mark.django_db
+def test_editar_tipo_atendimento_com_duracao_zero_retorna_400(api_client):
+    tipo = TipoAtendimento.objects.create(nome="Consulta", duracao_minutos=30)
+
+    resposta = api_client.put(
+        f"/api/tipos-atendimento/{tipo.id}/", {"nome": "Consulta", "duracao_minutos": 0}
+    )
+
+    assert resposta.status_code == status.HTTP_400_BAD_REQUEST
+    tipo.refresh_from_db()
+    assert tipo.duracao_minutos == 30
+
+
+@pytest.mark.django_db
 def test_desativar_tipo_atendimento_via_patch(api_client):
     tipo = TipoAtendimento.objects.create(nome="Consulta", duracao_minutos=30)
 

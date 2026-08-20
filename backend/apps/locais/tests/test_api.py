@@ -42,6 +42,20 @@ def test_listar_locais(api_client):
 
 
 @pytest.mark.django_db
+def test_editar_local_via_put(api_client):
+    local = Local.objects.create(nome="Unidade A", endereco="Rua A, 1")
+
+    payload = {"nome": "Unidade A - Renovada", "descricao": "Reformada", "endereco": "Rua A, 100"}
+    resposta = api_client.put(f"/api/locais/{local.id}/", payload)
+
+    assert resposta.status_code == status.HTTP_200_OK
+    local.refresh_from_db()
+    assert local.nome == "Unidade A - Renovada"
+    assert local.endereco == "Rua A, 100"
+    assert local.descricao == "Reformada"
+
+
+@pytest.mark.django_db
 def test_desativar_local_via_patch(api_client):
     local = Local.objects.create(nome="Unidade A", endereco="Rua A, 1")
 

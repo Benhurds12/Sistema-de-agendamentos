@@ -2,8 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   alternarAtivoLocal,
+  atualizarLocal,
   criarLocal,
   listarLocais,
+  type Local,
   type LocalInput,
 } from '../api/locais'
 import { extrairErrosDeCampo, type ErrosDeCampo } from '../api/errors'
@@ -14,6 +16,7 @@ export function LocaisPage() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<LocalInput>(FORM_VAZIO)
   const [erros, setErros] = useState<ErrosDeCampo>({})
+  const [editandoId, setEditandoId] = useState<number | null>(null)
 
   const locaisQuery = useQuery({ queryKey: ['locais'], queryFn: listarLocais })
 
@@ -27,15 +30,45 @@ export function LocaisPage() {
     onError: (erro) => setErros(extrairErrosDeCampo(erro)),
   })
 
+  const atualizarMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: LocalInput }) =>
+      atualizarLocal(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locais'] })
+      setForm(FORM_VAZIO)
+      setErros({})
+      setEditandoId(null)
+    },
+    onError: (erro) => setErros(extrairErrosDeCampo(erro)),
+  })
+
   const alternarAtivoMutation = useMutation({
     mutationFn: ({ id, ativo }: { id: number; ativo: boolean }) => alternarAtivoLocal(id, ativo),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['locais'] }),
   })
 
+  function iniciarEdicao(local: Local) {
+    setEditandoId(local.id)
+    setErros({})
+    setForm({ nome: local.nome, descricao: local.descricao, endereco: local.endereco })
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null)
+    setErros({})
+    setForm(FORM_VAZIO)
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    criarMutation.mutate(form)
+    if (editandoId !== null) {
+      atualizarMutation.mutate({ id: editandoId, payload: form })
+    } else {
+      criarMutation.mutate(form)
+    }
   }
+
+  const salvando = criarMutation.isPending || atualizarMutation.isPending
 
   return (
     <div className="space-y-8">
@@ -71,19 +104,34 @@ export function LocaisPage() {
           <p className="sm:col-span-2 text-sm text-red-600">{erros.nao_campo[0]}</p>
         )}
 
-        <div className="sm:col-span-2">
+        <div className="flex gap-3 sm:col-span-2">
           <button
             type="submit"
-            disabled={criarMutation.isPending}
+            disabled={salvando}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            {criarMutation.isPending ? 'Salvando...' : 'Cadastrar local'}
+            {salvando
+              ? 'Salvando...'
+              : editandoId !== null
+                ? 'Salvar alteracoes'
+                : 'Cadastrar local'}
           </button>
+          {editandoId !== null && (
+            <button
+              type="button"
+              onClick={cancelarEdicao}
+              className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+          )}
         </div>
       </form>
 
       <ListaLocais
         query={locaisQuery}
+        editandoId={editandoId}
+        onEditar={iniciarEdicao}
         onAlternarAtivo={(id, ativo) => alternarAtivoMutation.mutate({ id, ativo })}
       />
     </div>
@@ -122,9 +170,13 @@ function Campo({
 
 function ListaLocais({
   query,
+  editandoId,
+  onEditar,
   onAlternarAtivo,
 }: {
   query: ReturnType<typeof useQuery<Awaited<ReturnType<typeof listarLocais>>>>
+  editandoId: number | null
+  onEditar: (local: Local) => void
   onAlternarAtivo: (id: number, ativo: boolean) => void
 }) {
   if (query.isLoading) {
@@ -154,7 +206,7 @@ function ListaLocais({
       </thead>
       <tbody className="divide-y divide-slate-100">
         {locais.map((local) => (
-          <tr key={local.id}>
+          <tr key={local.id} className={editandoId === local.id ? 'bg-slate-50' : undefined}>
             <td className="px-4 py-2">{local.nome}</td>
             <td className="px-4 py-2">{local.endereco}</td>
             <td className="px-4 py-2 text-slate-500">{local.descricao || '-'}</td>
@@ -167,7 +219,13 @@ function ListaLocais({
                 {local.ativo ? 'Ativo' : 'Inativo'}
               </span>
             </td>
-            <td className="px-4 py-2 text-right">
+            <td className="px-4 py-2 text-right space-x-3 whitespace-nowrap">
+              <button
+                onClick={() => onEditar(local)}
+                className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
+              >
+                Editar
+              </button>
               <button
                 onClick={() => {
                   if (local.ativo && !confirm(`Desativar o local "${local.nome}"?`)) {

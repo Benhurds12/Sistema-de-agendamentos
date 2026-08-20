@@ -65,9 +65,11 @@ class AtendimentoSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_transicoes_permitidas(self, obj) -> list[str]:
-        from .models import TRANSICOES_PERMITIDAS
-
-        return sorted(TRANSICOES_PERMITIDAS.get(obj.status, set()))
+        return sorted(
+            candidato
+            for candidato in StatusAtendimento.values
+            if obj.pode_alterar_para(candidato)
+        )
 
 
 class AtendimentoCreateSerializer(serializers.Serializer):
@@ -95,3 +97,10 @@ class AlterarStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=StatusAtendimento.choices)
     motivo = serializers.CharField(required=False, allow_blank=True, default="")
     descricao = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class AtualizarObservacoesSerializer(serializers.Serializer):
+    """Edicao de motivo/descricao sem mudar o status (ver `atualizar_observacoes`)."""
+
+    motivo = serializers.CharField(required=False, allow_blank=True)
+    descricao = serializers.CharField(required=False, allow_blank=True)

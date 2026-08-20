@@ -2,8 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   alternarAtivoCliente,
+  atualizarCliente,
   criarCliente,
   listarClientes,
+  type Cliente,
   type ClienteInput,
 } from '../api/clientes'
 import { extrairErrosDeCampo, type ErrosDeCampo } from '../api/errors'
@@ -14,6 +16,7 @@ export function ClientesPage() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<ClienteInput>(FORM_VAZIO)
   const [erros, setErros] = useState<ErrosDeCampo>({})
+  const [editandoId, setEditandoId] = useState<number | null>(null)
 
   const clientesQuery = useQuery({ queryKey: ['clientes'], queryFn: listarClientes })
 
@@ -27,16 +30,51 @@ export function ClientesPage() {
     onError: (erro) => setErros(extrairErrosDeCampo(erro)),
   })
 
+  const atualizarMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: ClienteInput }) =>
+      atualizarCliente(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      setForm(FORM_VAZIO)
+      setErros({})
+      setEditandoId(null)
+    },
+    onError: (erro) => setErros(extrairErrosDeCampo(erro)),
+  })
+
   const alternarAtivoMutation = useMutation({
     mutationFn: ({ id, ativo }: { id: number; ativo: boolean }) =>
       alternarAtivoCliente(id, ativo),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clientes'] }),
   })
 
+  function iniciarEdicao(cliente: Cliente) {
+    setEditandoId(cliente.id)
+    setErros({})
+    setForm({
+      nome: cliente.nome,
+      documento: cliente.documento,
+      telefone: cliente.telefone,
+      email: cliente.email,
+    })
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null)
+    setErros({})
+    setForm(FORM_VAZIO)
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    criarMutation.mutate(form)
+    if (editandoId !== null) {
+      atualizarMutation.mutate({ id: editandoId, payload: form })
+    } else {
+      criarMutation.mutate(form)
+    }
   }
+
+  const salvando = criarMutation.isPending || atualizarMutation.isPending
 
   return (
     <div className="space-y-8">
@@ -76,19 +114,34 @@ export function ClientesPage() {
           <p className="sm:col-span-2 text-sm text-red-600">{erros.nao_campo[0]}</p>
         )}
 
-        <div className="sm:col-span-2">
+        <div className="flex gap-3 sm:col-span-2">
           <button
             type="submit"
-            disabled={criarMutation.isPending}
+            disabled={salvando}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            {criarMutation.isPending ? 'Salvando...' : 'Cadastrar cliente'}
+            {salvando
+              ? 'Salvando...'
+              : editandoId !== null
+                ? 'Salvar alteracoes'
+                : 'Cadastrar cliente'}
           </button>
+          {editandoId !== null && (
+            <button
+              type="button"
+              onClick={cancelarEdicao}
+              className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+          )}
         </div>
       </form>
 
       <ListaClientes
         query={clientesQuery}
+        editandoId={editandoId}
+        onEditar={iniciarEdicao}
         onAlternarAtivo={(id, ativo) => alternarAtivoMutation.mutate({ id, ativo })}
       />
     </div>
@@ -127,9 +180,13 @@ function Campo({
 
 function ListaClientes({
   query,
+  editandoId,
+  onEditar,
   onAlternarAtivo,
 }: {
   query: ReturnType<typeof useQuery<Awaited<ReturnType<typeof listarClientes>>>>
+  editandoId: number | null
+  onEditar: (cliente: Cliente) => void
   onAlternarAtivo: (id: number, ativo: boolean) => void
 }) {
   if (query.isLoading) {
@@ -160,7 +217,7 @@ function ListaClientes({
       </thead>
       <tbody className="divide-y divide-slate-100">
         {clientes.map((cliente) => (
-          <tr key={cliente.id}>
+          <tr key={cliente.id} className={editandoId === cliente.id ? 'bg-slate-50' : undefined}>
             <td className="px-4 py-2">{cliente.nome}</td>
             <td className="px-4 py-2">{cliente.documento}</td>
             <td className="px-4 py-2">{cliente.telefone}</td>
@@ -174,7 +231,13 @@ function ListaClientes({
                 {cliente.ativo ? 'Ativo' : 'Inativo'}
               </span>
             </td>
-            <td className="px-4 py-2 text-right">
+            <td className="px-4 py-2 text-right space-x-3 whitespace-nowrap">
+              <button
+                onClick={() => onEditar(cliente)}
+                className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
+              >
+                Editar
+              </button>
               <button
                 onClick={() => {
                   if (cliente.ativo && !confirm(`Desativar o cliente "${cliente.nome}"?`)) {

@@ -169,7 +169,12 @@ function ListaLocais({
             </td>
             <td className="px-4 py-2 text-right">
               <button
-                onClick={() => onAlternarAtivo(local.id, !local.ativo)}
+                onClick={() => {
+                  if (local.ativo && !confirm(`Desativar o local "${local.nome}"?`)) {
+                    return
+                  }
+                  onAlternarAtivo(local.id, !local.ativo)
+                }}
                 className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
               >
                 {local.ativo ? 'Desativar' : 'Reativar'}

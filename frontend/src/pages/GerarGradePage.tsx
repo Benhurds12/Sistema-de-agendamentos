@@ -9,9 +9,16 @@ interface FormState {
   inicio: string
   fim: string
   duracao_minutos: string
+  apenas_dias_uteis: boolean
 }
 
-const FORM_VAZIO: FormState = { local: '', inicio: '', fim: '', duracao_minutos: '' }
+const FORM_VAZIO: FormState = {
+  local: '',
+  inicio: '',
+  fim: '',
+  duracao_minutos: '',
+  apenas_dias_uteis: false,
+}
 
 export function GerarGradePage() {
   const [form, setForm] = useState<FormState>(FORM_VAZIO)
@@ -47,6 +54,7 @@ export function GerarGradePage() {
       inicio: form.inicio,
       fim: form.fim,
       duracao_minutos: Number(form.duracao_minutos),
+      apenas_dias_uteis: form.apenas_dias_uteis,
     })
   }
 
@@ -137,6 +145,21 @@ export function GerarGradePage() {
             <span className="mt-1 block text-xs text-red-600">{erros.duracao_minutos[0]}</span>
           )}
         </label>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.apenas_dias_uteis}
+            onChange={(e) => setForm({ ...form, apenas_dias_uteis: e.target.checked })}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          <span className="text-slate-700">
+            Gerar apenas em dias úteis (pular sábados e domingos)
+          </span>
+        </label>
+        {erros.apenas_dias_uteis && (
+          <p className="text-sm text-red-600">{erros.apenas_dias_uteis[0]}</p>
+        )}
 
         {erros.nao_campo && <p className="text-sm text-red-600">{erros.nao_campo[0]}</p>}
 

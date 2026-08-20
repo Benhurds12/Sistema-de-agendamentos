@@ -23,13 +23,22 @@ class ResultadoGrade:
     mensagem: str
 
 
-def _janelas_diarias(inicio: datetime, fim: datetime) -> list[tuple[datetime, datetime]]:
+#: Valores de `date.weekday()` para sabado (5) e domingo (6).
+_FIM_DE_SEMANA = {5, 6}
+
+
+def _janelas_diarias(
+    inicio: datetime, fim: datetime, *, apenas_dias_uteis: bool = False
+) -> list[tuple[datetime, datetime]]:
     """Uma janela [inicio_do_dia, fim_do_dia) por dia do intervalo.
 
     O horario (nao a data) de `inicio` e `fim` define o expediente diario,
     repetido em todos os dias do intervalo. Ex.: inicio dia 17 as 08:00 e fim
     dia 21 as 18:00 gera 5 janelas (17 a 21), cada uma das 08:00 as 18:00 —
     nenhum horario cai na madrugada entre um dia e o proximo.
+
+    Se `apenas_dias_uteis=True`, sabados e domingos sao pulados por completo
+    (nenhuma janela e gerada para eles).
     """
     hora_inicio_diaria = inicio.timetz()
     hora_fim_diaria = fim.timetz()
@@ -47,16 +56,32 @@ def _janelas_diarias(inicio: datetime, fim: datetime) -> list[tuple[datetime, da
     janelas = []
     dia_atual = inicio.date()
     while dia_atual <= fim.date():
-        janela_inicio = datetime.combine(dia_atual, hora_inicio_diaria)
-        janela_fim = datetime.combine(dia_atual, hora_fim_diaria)
-        janelas.append((janela_inicio, janela_fim))
+        if not (apenas_dias_uteis and dia_atual.weekday() in _FIM_DE_SEMANA):
+            janela_inicio = datetime.combine(dia_atual, hora_inicio_diaria)
+            janela_fim = datetime.combine(dia_atual, hora_fim_diaria)
+            janelas.append((janela_inicio, janela_fim))
         dia_atual += timedelta(days=1)
+
+    if apenas_dias_uteis and not janelas:
+        raise ValidationError(
+            {
+                "apenas_dias_uteis": [
+                    "O intervalo informado nao contem nenhum dia util "
+                    "(sabado/domingo foram excluidos)."
+                ]
+            }
+        )
 
     return janelas
 
 
 def gerar_grade(
-    *, local: Local, inicio: datetime, fim: datetime, duracao_minutos: int
+    *,
+    local: Local,
+    inicio: datetime,
+    fim: datetime,
+    duracao_minutos: int,
+    apenas_dias_uteis: bool = False,
 ) -> ResultadoGrade:
     """Gera a quantidade maxima de horarios completos dentro do intervalo.
 
@@ -86,7 +111,7 @@ def gerar_grade(
         )
 
     duracao = timedelta(minutes=duracao_minutos)
-    janelas = _janelas_diarias(inicio, fim)
+    janelas = _janelas_diarias(inicio, fim, apenas_dias_uteis=apenas_dias_uteis)
 
     horarios = []
     for janela_inicio, janela_fim in janelas:

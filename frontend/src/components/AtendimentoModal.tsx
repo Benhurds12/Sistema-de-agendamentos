@@ -84,6 +84,10 @@ export function AtendimentoModal({
                   </option>
                 ))}
               </select>
+              <span className="mt-1 block text-xs text-slate-500">
+                Ao escolher "Cancelado" ou "Realizado", um campo para detalhar o motivo ou o
+                relatório do atendimento aparece aqui embaixo.
+              </span>
             </label>
 
             {novoStatus === 'CANCELADO' && (

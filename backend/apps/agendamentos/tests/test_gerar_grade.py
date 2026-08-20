@@ -270,6 +270,86 @@ def test_grade_multidias_detecta_conflito_dentro_do_expediente(api_client, local
 
 
 @pytest.mark.django_db
+def test_grade_apenas_dias_uteis_pula_sabado_e_domingo(api_client, local):
+    inicio = _dias_a_partir_de_amanha_as(0, 8, 0)
+    fim = _dias_a_partir_de_amanha_as(7, 18, 0)  # 8 dias corridos: cobre >=1 fim de semana
+
+    resposta = api_client.post(
+        "/api/horarios/gerar-grade/",
+        {
+            "local": local.id,
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "duracao_minutos": 60,
+            "apenas_dias_uteis": True,
+        },
+    )
+
+    assert resposta.status_code == status.HTTP_201_CREATED
+
+    dias_uteis_no_intervalo = sum(
+        1
+        for i in range(8)
+        if (inicio.date() + timedelta(days=i)).weekday() not in (5, 6)
+    )
+    assert resposta.data["criadas"] == dias_uteis_no_intervalo * 10  # 10h / 60min por dia
+
+    horarios = HorarioAgendamento.objects.filter(local=local)
+    for horario in horarios:
+        dia_semana = timezone.localtime(horario.inicio).weekday()
+        assert dia_semana not in (5, 6), f"horario caiu em fim de semana: {horario.inicio}"
+
+
+@pytest.mark.django_db
+def test_grade_sem_flag_inclui_fim_de_semana_normalmente(api_client, local):
+    """Comportamento padrao (flag ausente/False): nao filtra nenhum dia."""
+    inicio = _dias_a_partir_de_amanha_as(0, 8, 0)
+    fim = _dias_a_partir_de_amanha_as(7, 18, 0)
+
+    resposta = api_client.post(
+        "/api/horarios/gerar-grade/",
+        {
+            "local": local.id,
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "duracao_minutos": 60,
+        },
+    )
+
+    assert resposta.status_code == status.HTTP_201_CREATED
+    assert resposta.data["criadas"] == 80  # 8 dias * 10 horarios/dia, sem excecao
+
+
+@pytest.mark.django_db
+def test_grade_apenas_dias_uteis_sem_nenhum_dia_util_retorna_400(api_client, local):
+    """Se o intervalo cai inteiro num fim de semana, nao ha nada para gerar."""
+    amanha = timezone.localtime().date() + timedelta(days=1)
+    dias_ate_sabado = (5 - amanha.weekday()) % 7
+    sabado = amanha + timedelta(days=dias_ate_sabado)
+
+    inicio = timezone.localtime().replace(
+        year=sabado.year, month=sabado.month, day=sabado.day,
+        hour=8, minute=0, second=0, microsecond=0,
+    )
+    fim = inicio + timedelta(days=1, hours=10)  # sabado 08:00 ate domingo 18:00
+
+    resposta = api_client.post(
+        "/api/horarios/gerar-grade/",
+        {
+            "local": local.id,
+            "inicio": inicio.isoformat(),
+            "fim": fim.isoformat(),
+            "duracao_minutos": 60,
+            "apenas_dias_uteis": True,
+        },
+    )
+
+    assert resposta.status_code == status.HTTP_400_BAD_REQUEST
+    assert "apenas_dias_uteis" in resposta.data
+    assert HorarioAgendamento.objects.filter(local=local).count() == 0
+
+
+@pytest.mark.django_db
 def test_inicio_no_passado_retorna_400(api_client, local):
     inicio = timezone.now() - timedelta(hours=1)
     fim = timezone.now() + timedelta(hours=1)
